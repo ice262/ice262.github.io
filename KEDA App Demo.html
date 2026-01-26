@@ -1,0 +1,633 @@
+<<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#38bdf8">
+    <meta name="description" content="KEDA - Conecta con personas que comparten tus hobbies">
+    <title>KEDA - Demo App</title>
+    <link rel="manifest" href="data:application/manifest+json,{%22name%22:%22KEDA%22,%22short_name%22:%22KEDA%22,%22start_url%22:%22/%22,%22display%22:%22standalone%22,%22background_color%22:%22%23020617%22,%22theme_color%22:%22%2338bdf8%22,%22icons%22:[{%22src%22:%22data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 192 192%27><rect fill=%27%2338bdf8%27 width=%27192%27 height=%27192%27/><text x=%2750%25%27 y=%2750%25%27 font-size=%2780%27 font-weight=%27bold%27 fill=%27white%27 text-anchor=%27middle%27 dominant-baseline=%27middle%27>KEDA</text></svg>%22,%22sizes%22:%22192x192%22,%22type%22:%22image/svg+xml%22}]}">
+
+    <!-- Leaflet (CDN) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #020617;
+            color: #f1f5f9;
+            overflow: hidden;
+        }
+
+        body { display: flex; flex-direction: column; height: 100vh; }
+
+        .header {
+            background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
+            padding: 1rem;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            flex-shrink: 0;
+        }
+
+        .header h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 0.2rem; color: white; }
+        .header p { font-size: 0.85rem; color: rgba(255,255,255,0.9); }
+
+        .container {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding-bottom: 80px;
+            background:
+              radial-gradient(1200px 500px at 20% 0%, rgba(56,189,248,0.10), transparent 55%),
+              radial-gradient(900px 500px at 90% 10%, rgba(236,72,153,0.10), transparent 55%),
+              #0f172a;
+        }
+
+        .screen { display: none; padding: 1.5rem 1rem; }
+        .screen.active { display: block; animation: fadeIn 0.25s ease-in; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .home-header { margin-bottom: 1.2rem; }
+        .home-header h2 { font-size: 1.5rem; margin-bottom: 0.3rem; color: #38bdf8; }
+        .home-header p { font-size: 0.9rem; color: #cbd5e1; }
+
+        .filter-bar {
+            display: flex;
+            gap: 0.7rem;
+            margin-bottom: 1.2rem;
+            overflow-x: auto;
+            padding-bottom: 0.5rem;
+        }
+
+        .filter-btn {
+            padding: 0.55rem 1rem;
+            border: 1px solid rgba(56,189,248,0.9);
+            background: rgba(2,6,23,0.25);
+            color: #38bdf8;
+            border-radius: 999px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            white-space: nowrap;
+            transition: transform 0.2s, background 0.2s, color 0.2s;
+            backdrop-filter: blur(6px);
+        }
+
+        .filter-btn.active { background-color: #38bdf8; color: #020617; }
+        .filter-btn:active { transform: scale(0.98); }
+
+        .activity-card {
+            background: linear-gradient(180deg, rgba(30,41,59,0.95), rgba(15,23,42,0.95));
+            border: 1px solid rgba(148,163,184,0.18);
+            border-left: 4px solid #38bdf8;
+            padding: 1.2rem;
+            margin-bottom: 1rem;
+            border-radius: 12px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.25);
+        }
+
+        .activity-card:active { transform: scale(0.985); box-shadow: 0 12px 30px rgba(56,189,248,0.12); }
+        .activity-card h3 { font-size: 1.1rem; margin-bottom: 0.5rem; color: #38bdf8; }
+
+        .activity-info {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.8rem;
+            font-size: 0.85rem;
+            color: #cbd5e1;
+            margin-bottom: 0.8rem;
+        }
+
+        .activity-desc { font-size: 0.9rem; color: #94a3b8; margin-bottom: 1rem; line-height: 1.4; }
+
+        .activity-user { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.8rem; font-size: 0.85rem; }
+
+        .avatar {
+            width: 34px; height: 34px; border-radius: 50%;
+            background: linear-gradient(135deg, #38bdf8, #ec4899);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: bold; font-size: 0.8rem;
+            box-shadow: 0 10px 18px rgba(236,72,153,0.12);
+        }
+
+        .user-name { color: #f1f5f9; font-weight: 600; }
+        .user-rating { color: #fbbf24; font-size: 0.75rem; }
+
+        .join-btn {
+            width: 100%;
+            padding: 0.85rem;
+            background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
+            color: #020617;
+            border: none;
+            border-radius: 10px;
+            font-weight: 800;
+            cursor: pointer;
+            letter-spacing: 0.2px;
+        }
+
+        .join-btn:active { opacity: 0.92; }
+        .join-btn:disabled { background: #64748b; cursor: not-allowed; }
+
+        /* MAP */
+        #leafletMap {
+            width: 100%;
+            height: 420px;
+            border-radius: 14px;
+            overflow: hidden;
+            border: 1px solid rgba(56,189,248,0.25);
+            box-shadow: 0 16px 35px rgba(0,0,0,0.35);
+            margin-bottom: 1rem;
+            background: #1e293b;
+        }
+
+        .map-note {
+            background-color: rgba(30,41,59,0.9);
+            border: 1px solid rgba(148,163,184,0.16);
+            padding: 1rem;
+            border-radius: 12px;
+            color: #cbd5e1;
+            line-height: 1.55;
+        }
+
+        /* Create Screen */
+        .form-group { margin-bottom: 1.15rem; }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: #f1f5f9;
+        }
+
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 0.85rem;
+            background-color: rgba(30,41,59,0.9);
+            border: 1px solid rgba(148,163,184,0.20);
+            border-radius: 10px;
+            color: #f1f5f9;
+            font-family: inherit;
+            font-size: 0.95rem;
+            outline: none;
+        }
+
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+        .submit-btn {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(135deg, #ec4899 0%, #38bdf8 100%);
+            color: #020617;
+            border: none;
+            border-radius: 12px;
+            font-weight: 900;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+
+        /* Profile Screen */
+        .profile-header {
+            background: linear-gradient(180deg, rgba(30,41,59,0.95), rgba(15,23,42,0.95));
+            border: 1px solid rgba(148,163,184,0.18);
+            padding: 1.5rem;
+            border-radius: 14px;
+            text-align: center;
+            margin-bottom: 1rem;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.25);
+        }
+
+        .profile-avatar {
+            width: 84px; height: 84px; border-radius: 50%;
+            background: linear-gradient(135deg, #38bdf8, #ec4899);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: 900; font-size: 2rem;
+            margin: 0 auto 1rem;
+        }
+
+        .profile-name { font-size: 1.3rem; font-weight: 800; margin-bottom: 0.3rem; }
+        .profile-rating { color: #fbbf24; font-size: 0.95rem; margin-bottom: 1rem; }
+
+        .profile-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+        .stat-box { background-color: rgba(2,6,23,0.35); padding: 1rem; border-radius: 12px; }
+        .stat-number { font-size: 1.5rem; font-weight: 900; color: #38bdf8; margin-bottom: 0.2rem; }
+        .stat-label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; }
+
+        .hobbies-section {
+            background-color: rgba(30,41,59,0.9);
+            border: 1px solid rgba(148,163,184,0.16);
+            padding: 1rem;
+            border-radius: 14px;
+            margin-bottom: 1rem;
+        }
+
+        .hobbies-section h3 { margin-bottom: 0.8rem; color: #38bdf8; }
+
+        .hobby-tags { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+        .hobby-tag { background-color: rgba(51,65,85,0.9); padding: 0.5rem 1rem; border-radius: 999px; font-size: 0.85rem; color: #cbd5e1; }
+        .hobby-tag.featured { background-color: #38bdf8; color: #020617; font-weight: 800; }
+
+        /* Bottom Navigation */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            background-color: rgba(30,41,59,0.92);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(148,163,184,0.18);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            height: 74px;
+            z-index: 100;
+        }
+
+        .nav-item {
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 0.25rem;
+            flex: 1; height: 100%;
+            cursor: pointer;
+            border: none; background: none;
+            color: #94a3b8;
+            font-size: 0.75rem; font-weight: 700;
+        }
+
+        .nav-item.active { color: #38bdf8; }
+        .nav-icon { font-size: 1.5rem; }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 86px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #38bdf8;
+            color: #020617;
+            padding: 0.85rem 1.2rem;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-weight: 900;
+            z-index: 99;
+            animation: slideUp 0.25s ease-out, slideDown 0.25s ease-in 2s forwards;
+            box-shadow: 0 14px 30px rgba(56,189,248,0.25);
+        }
+
+        @keyframes slideUp {
+            from { transform: translateX(-50%) translateY(18px); opacity: 0; }
+            to { transform: translateX(-50%) translateY(0); opacity: 1; }
+        }
+        @keyframes slideDown {
+            from { transform: translateX(-50%) translateY(0); opacity: 1; }
+            to { transform: translateX(-50%) translateY(18px); opacity: 0; }
+        }
+
+        @media (min-width: 768px) {
+            .container { max-width: 640px; margin: 0 auto; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔵 KEDA</h1>
+        <p>Kedar nunca fue tan fácil • Demo Feria</p>
+    </div>
+
+    <div class="container">
+        <!-- HOME -->
+        <div id="homeScreen" class="screen active">
+            <div class="home-header">
+                <h2>📍 Actividades Cercanas</h2>
+                <p>Madrid • Ahora</p>
+            </div>
+
+            <div class="filter-bar">
+                <button class="filter-btn active" onclick="filterActivities('todos', event)">Todos</button>
+                <button class="filter-btn" onclick="filterActivities('deporte', event)">⚽ Deporte</button>
+                <button class="filter-btn" onclick="filterActivities('musica', event)">🎵 Música</button>
+                <button class="filter-btn" onclick="filterActivities('lectura', event)">📚 Lectura</button>
+                <button class="filter-btn" onclick="filterActivities('paseo', event)">🚶 Paseo</button>
+                <button class="filter-btn" onclick="filterActivities('skate', event)">🛹 Skate</button>
+            </div>
+
+            <div id="activitiesList"></div>
+        </div>
+
+        <!-- MAP -->
+        <div id="mapScreen" class="screen">
+            <h2 style="margin-bottom: 0.8rem; color: #38bdf8;">🗺️ Mapa (Madrid • Orcasitas)</h2>
+
+            <div id="leafletMap"></div>
+
+            <div class="map-note">
+                <strong style="color:#38bdf8;">💡 Tip:</strong>
+                En la app real, el mapa mostraría puntos interactivos creados por usuarios en tiempo real (crear/unirse, chat y coordinación).
+            </div>
+        </div>
+
+        <!-- CREATE -->
+        <div id="createScreen" class="screen">
+            <h2 style="margin-bottom: 1.2rem; color: #38bdf8;">➕ Crea tu Actividad</h2>
+
+            <form onsubmit="createActivity(event)">
+                <div class="form-group">
+                    <label for="hobby">¿Qué hobby? *</label>
+                    <select id="hobby" required>
+                        <option value="">Selecciona un hobby</option>
+                        <option value="deporte">⚽ Deporte</option>
+                        <option value="musica">🎵 Música</option>
+                        <option value="lectura">📚 Lectura</option>
+                        <option value="paseo">🚶 Paseo</option>
+                        <option value="skate">🛹 Skate</option>
+                        <option value="videojuegos">🎮 Videojuegos</option>
+                        <option value="otro">Otro</option>
+                    </select>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="time">Hora *</label>
+                        <input type="time" id="time" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="people">Nº personas *</label>
+                        <select id="people" required>
+                            <option value="">Selecciona</option>
+                            <option value="1">1-2 personas</option>
+                            <option value="3">3-5 personas</option>
+                            <option value="6">6+ personas</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="location">Ubicación *</label>
+                    <input type="text" id="location" placeholder="Ej: Parque del Retiro" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Descripción (opcional)</label>
+                    <textarea id="description" placeholder="Cuéntales más sobre tu actividad..."></textarea>
+                </div>
+
+                <button type="submit" class="submit-btn">Crear Actividad</button>
+            </form>
+        </div>
+
+        <!-- PROFILE -->
+        <div id="profileScreen" class="screen">
+            <h2 style="margin-bottom: 1.2rem; color: #38bdf8;">👤 Mi Perfil</h2>
+
+            <div class="profile-header">
+                <div class="profile-avatar">JD</div>
+                <div class="profile-name">Juan Deportista</div>
+                <div class="profile-rating">⭐ 4.8/5 (23 reseñas)</div>
+
+                <div class="profile-stats">
+                    <div class="stat-box">
+                        <div class="stat-number">47</div>
+                        <div class="stat-label">Actividades</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-number">142</div>
+                        <div class="stat-label">Conexiones</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="hobbies-section">
+                <h3>Mis Hobbies</h3>
+                <div class="hobby-tags">
+                    <div class="hobby-tag featured">⚽ Fútbol</div>
+                    <div class="hobby-tag featured">🏃 Running</div>
+                    <div class="hobby-tag">🎾 Tenis</div>
+                    <div class="hobby-tag">🏊 Natación</div>
+                    <div class="hobby-tag">🚴 Ciclismo</div>
+                </div>
+            </div>
+
+            <div class="hobbies-section">
+                <h3>Verificación & Seguridad</h3>
+                <div style="font-size: 0.9rem; color: #cbd5e1; line-height: 1.6;">
+                    ✅ <strong>Email verificado</strong><br>
+                    ✅ <strong>Identidad confirmada</strong> (Google)<br>
+                    ✅ <strong>Reputación: Fiable</strong><br>
+                    🔒 Reportes: 0 incidentes
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bottom-nav">
+        <button class="nav-item active" onclick="showScreen('homeScreen', this)">
+            <div class="nav-icon">🏠</div><div>Home</div>
+        </button>
+        <button class="nav-item" onclick="showScreen('mapScreen', this)">
+            <div class="nav-icon">🗺️</div><div>Mapa</div>
+        </button>
+        <button class="nav-item" onclick="showScreen('createScreen', this)">
+            <div class="nav-icon">➕</div><div>Crear</div>
+        </button>
+        <button class="nav-item" onclick="showScreen('profileScreen', this)">
+            <div class="nav-icon">👤</div><div>Perfil</div>
+        </button>
+    </div>
+
+    <script>
+        const activities = [
+            { id: 1, hobby: 'deporte', icon: '⚽', title: 'Partido de Fútbol', time: '18:00', location: 'Parque del Retiro', distance: '0.8 km', people: '8/10', desc: 'Buscamos 2 personas más para completar nuestro partido', user: { name: 'Carlos García', initial: 'CG', rating: 4.9 }, lat: 40.4153, lng: -3.6844 },
+            { id: 2, hobby: 'musica', icon: '🎵', title: 'Jam Session (Rock)', time: '19:30', location: 'Lavapiés', distance: '1.2 km', people: '5/5', desc: 'Guitarristas y bajistas buscamos baterista para ensayar', user: { name: 'Laura Música', initial: 'LM', rating: 4.7 }, lat: 40.4087, lng: -3.7003 },
+            { id: 3, hobby: 'lectura', icon: '📚', title: 'Club de Lectura', time: '17:00', location: 'Café por Atocha', distance: '1.5 km', people: '4/6', desc: 'Discutimos “Cien años de soledad”. ¡Todos bienvenidos!', user: { name: 'Elena Lectora', initial: 'EL', rating: 4.6 }, lat: 40.4066, lng: -3.6894 },
+            { id: 4, hobby: 'paseo', icon: '🚶', title: 'Paseo por Madrid Río', time: '16:30', location: 'Madrid Río', distance: '2.0 km', people: '3/5', desc: 'Caminata relajada. Perfecto para conocer gente nueva', user: { name: 'Miguel Andar', initial: 'MA', rating: 4.8 }, lat: 40.4049, lng: -3.7194 },
+            { id: 5, hobby: 'deporte', icon: '🏃', title: 'Running Group', time: '07:00', location: 'Parque del Oeste', distance: '3.3 km', people: '12/15', desc: '10K matutino. Nivel intermedio. Ritmo: 5:30 min/km', user: { name: 'Ana Runner', initial: 'AR', rating: 5.0 }, lat: 40.4262, lng: -3.7236 },
+            { id: 6, hobby: 'skate', icon: '🛹', title: 'Sesión de Skate', time: '20:00', location: 'Plaza Mayor', distance: '1.8 km', people: '6/8', desc: 'Nivel principiante-intermedio. Venid todos sin miedo', user: { name: 'Alex Skater', initial: 'AS', rating: 4.5 }, lat: 40.4155, lng: -3.7074 },
+            { id: 7, hobby: 'paseo', icon: '🚶', title: 'Paseo por Orcasitas', time: '19:00', location: 'Orcasitas', distance: 'Cerca', people: '2/6', desc: 'Plan tranquilo por el barrio, ideal para charlar', user: { name: 'Sonia Vecina', initial: 'SV', rating: 4.9 }, lat: 40.3667, lng: -3.7088 }
+        ];
+
+        let currentFilter = 'todos';
+        let joinedActivities = [];
+        let map;
+        let markers = [];
+
+        function renderActivities() {
+            const container = document.getElementById('activitiesList');
+            let filtered = currentFilter === 'todos' ? activities : activities.filter(a => a.hobby === currentFilter);
+
+            container.innerHTML = filtered.map(activity => `
+                <div class="activity-card">
+                    <h3>${activity.icon} ${activity.title}</h3>
+                    <div class="activity-info">
+                        <div>🕐 ${activity.time}</div>
+                        <div>📍 ${activity.location}</div>
+                        <div>👥 ${activity.people}</div>
+                    </div>
+                    <div class="activity-desc">${activity.desc}</div>
+                    <div class="activity-user">
+                        <div class="avatar">${activity.user.initial}</div>
+                        <div style="flex:1;">
+                            <div class="user-name">${activity.user.name}</div>
+                            <div class="user-rating">⭐ ${activity.user.rating}</div>
+                        </div>
+                    </div>
+                    <button class="join-btn" onclick="joinActivity(${activity.id}, '${activity.title.replace(/'/g,"\\'")}')">
+                        ${joinedActivities.includes(activity.id) ? '✅ Unido' : 'Unirme'}
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function filterActivities(filter, ev) {
+            currentFilter = filter;
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            if (ev && ev.target) ev.target.classList.add('active');
+            renderActivities();
+            refreshMapMarkers();
+        }
+
+        function joinActivity(id, title) {
+            if (joinedActivities.includes(id)) {
+                joinedActivities = joinedActivities.filter(aid => aid !== id);
+                showToast('Actividad removida ❌');
+            } else {
+                joinedActivities.push(id);
+                showToast(`¡Te uniste a ${title}! 🎉`);
+            }
+            renderActivities();
+        }
+
+        function createActivity(e) {
+            e.preventDefault();
+            const hobby = document.getElementById('hobby').value;
+            const time = document.getElementById('time').value;
+            const people = document.getElementById('people').value;
+            const location = document.getElementById('location').value;
+            const description = document.getElementById('description').value || 'Actividad creada por ti';
+
+            if (!hobby || !time || !people || !location) return;
+
+            // Añadimos actividad cerca de Orcasitas por defecto (demo)
+            const newId = activities.length + 1;
+            const iconByHobby = { deporte:'⚽', musica:'🎵', lectura:'📚', paseo:'🚶', skate:'🛹', videojuegos:'🎮', otro:'✨' };
+            const lat = 40.3667 + (Math.random() - 0.5) * 0.01;
+            const lng = -3.7088 + (Math.random() - 0.5) * 0.01;
+
+            activities.unshift({
+                id: newId,
+                hobby,
+                icon: iconByHobby[hobby] || '✨',
+                title: 'Actividad nueva',
+                time,
+                location,
+                distance: 'Cerca',
+                people: people === '1' ? '1-2' : people === '3' ? '3-5' : '6+',
+                desc: description,
+                user: { name: 'Tú', initial: 'TU', rating: 5.0 },
+                lat, lng
+            });
+
+            showToast('¡Actividad creada! 🚀');
+            document.querySelector('form').reset();
+            currentFilter = 'todos';
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelector('.filter-btn').classList.add('active');
+            renderActivities();
+            refreshMapMarkers();
+            showScreen('homeScreen', document.querySelector('.nav-item.active'));
+        }
+
+        function showScreen(screenId, navItem) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            if (navItem) navItem.classList.add('active');
+
+            if (screenId === 'mapScreen') {
+                setTimeout(() => initMapIfNeeded(), 50);
+            }
+        }
+
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2500);
+        }
+
+        function initMapIfNeeded() {
+            if (map) {
+                map.invalidateSize();
+                return;
+            }
+
+            // Orcasitas (Madrid) approx
+            const orcasitas = [40.3667, -3.7088];
+
+            map = L.map('leafletMap').setView(orcasitas, 13); // Leaflet setView [web]
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map); // OSM tile layer [web]
+
+            // Marker: Orcasitas highlight
+            L.marker(orcasitas).addTo(map).bindPopup('<b>Orcasitas</b><br>Zona destacada para la demo.').openPopup();
+
+            refreshMapMarkers();
+
+            map.on('click', (e) => {
+                showToast(`📍 Punto: ${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`);
+            });
+        }
+
+        function refreshMapMarkers() {
+            if (!map) return;
+
+            markers.forEach(m => m.remove());
+            markers = [];
+
+            let filtered = currentFilter === 'todos' ? activities : activities.filter(a => a.hobby === currentFilter);
+
+            filtered.forEach(a => {
+                const m = L.marker([a.lat, a.lng]).addTo(map)
+                    .bindPopup(`<b>${a.icon} ${a.title}</b><br>${a.location}<br>🕐 ${a.time} • 👥 ${a.people}`);
+                markers.push(m);
+            });
+        }
+
+        // Init
+        renderActivities();
+
+        // Service Worker (mantiene la UI offline; el mapa necesita internet para tiles)
+        if ('serviceWorker' in navigator) {
+            const swCode = `
+                self.addEventListener('install', (e) => {
+                    e.waitUntil(caches.open('keda-v2').then((cache) => {
+                        // Cacheamos SOLO la app shell (esta página)
+                        return cache.addAll(['/']);
+                    }).catch(() => Promise.resolve()));
+                });
+
+                self.addEventListener('fetch', (e) => {
+                    // Para la app shell: cache-first
+                    e.respondWith(
+                        caches.match(e.request).then((cached) => {
+                            return cached || fetch(e.request);
+                        }).catch(() => fetch(e.request))
+                    );
+                });
+            `;
+
+            const blob = new Blob([swCode], { type: 'application/javascript' });
+            const swUrl = URL.createObjectURL(blob);
+
+            navigator.serviceWorker.register(swUrl).catch(() => {});
+        }
+    </script>
+</body>
+</html>
